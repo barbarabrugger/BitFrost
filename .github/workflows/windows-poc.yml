@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: '24'
       - name: Test Codex adapter and local transport without credentials or model calls
-        run: node --test --disable-warning=ExperimentalWarning plugins/bitfrost/daemon/test/codex.spec.ts windows/platform.test.mjs windows/poc-transport.test.mjs
+        run: node --test --disable-warning=ExperimentalWarning plugins/bitfrost/daemon/test/codex.spec.ts windows/platform.test.mjs windows/poc-transport.test.mjs windows/pilot-setup.test.mjs
       - name: Verify standalone Desktop packaging can read its schema version
         shell: pwsh
         run: |

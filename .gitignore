@@ -18,3 +18,5 @@ dist/
 .poc/
 plugins/bitfrost/windows/launch.json
 *.local.json
+# Generated project-local pilot plugins and instructions.
+/.claude/

@@ -5,6 +5,9 @@ Experimental work based on upstream BitFrost commit
 (0.9.3). This branch is a feasibility experiment, not a supported Windows release.
 The upstream GPL-3.0-only license and copyright notices are preserved.
 
+For the project-local everyday trial, see [windows/PILOT.md](windows/PILOT.md).
+It adds a launch button, a real sandbox preflight and natural-language file tasks.
+
 ## Scope
 
 Run the existing TypeScript helper and Codex App Server on Windows, keeping

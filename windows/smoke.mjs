@@ -5,7 +5,9 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const state = path.join(root, '.poc')
+const stateArg = process.argv.indexOf('--state')
+const state = stateArg < 0 ? path.join(root, '.poc') : process.argv[stateArg + 1]
+assert.ok(state && path.isAbsolute(state), '--state must name an absolute POC state directory')
 const cfg = JSON.parse(fs.readFileSync(path.join(state, 'config/bitfrost/config.json'), 'utf8'))
 const e = JSON.parse(fs.readFileSync(path.join(state, 'run/endpoint.json'), 'utf8'))
 const base = `http://127.0.0.1:${e.port}`

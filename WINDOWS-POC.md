@@ -128,7 +128,8 @@ Keep small portability fixes separate from the experimental transport and probe.
 Start with executable discovery, PATH handling and Windows test-fixture launching.
 Discuss the intended IPC transport and supported provider scope with the maintainer
 before proposing broader support, as requested in CONTRIBUTING.md. A Windows CI
-workflow for the credential-free Codex/platform/transport tests is included, but
-has not yet run on GitHub.
+workflow for the credential-free Codex/platform/transport tests is included. Its
+first GitHub run passed on `windows-latest`, including the standalone Desktop
+packaging check, on 2026-10-31.
 
 No upstream issue or pull request has been submitted by this experiment.

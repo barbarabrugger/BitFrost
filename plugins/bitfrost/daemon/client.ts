@@ -10,14 +10,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { LOG, RUN_DIR, SOCKET } from './config.ts'
+import { LOG, RUN_DIR } from './config.ts'
+import { clientOptions } from './poc-transport.ts'
 
 const ENTRY = path.join(path.dirname(fileURLToPath(import.meta.url)), 'bitfrostd.ts')
 
 export function call(method: string, urlPath: string, timeout = 1000, body?: unknown): Promise<{ status: number; body: any } | null> {
   return new Promise((resolve) => {
     // Avoid pooled connections to a helper that may have exited.
-    const req = http.request({ socketPath: SOCKET, path: urlPath, method, timeout, agent: false }, (res) => {
+    let transport: http.RequestOptions
+    try { transport = clientOptions() } catch { resolve(null); return }
+    const req = http.request({ ...transport, path: urlPath, method, timeout, agent: false }, (res) => {
       let data = ''
       res.setEncoding('utf8')
       res.on('data', (c) => (data += c))
@@ -47,7 +50,7 @@ export async function start(): Promise<boolean> {
   if (await health()) return true
   fs.mkdirSync(RUN_DIR, { recursive: true, mode: 0o700 })
   const out = fs.openSync(LOG, 'a')
-  const child = spawn(process.execPath, [...process.execArgv, ENTRY, 'serve'], { detached: true, stdio: ['ignore', out, out] })
+  const child = spawn(process.execPath, [...process.execArgv, ENTRY, 'serve'], { detached: true, windowsHide: true, stdio: ['ignore', out, out] })
   child.unref()
   fs.closeSync(out)
   for (let i = 0; i < 50; i++) {

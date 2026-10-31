@@ -15,7 +15,7 @@ import { FEATURES, EFFORTS, claudeModelId, pendingFeatures } from './features.ts
 export { VERSION } from './version.ts'
 
 const HOME = os.homedir()
-export const RUN_DIR = process.env.BITFROST_RUNTIME_DIR || path.join(process.env.XDG_RUNTIME_DIR ?? `/tmp/bitfrost-${process.getuid!()}`, 'bitfrost')
+export const RUN_DIR = process.env.BITFROST_RUNTIME_DIR || path.join(process.platform === 'win32' ? os.tmpdir() : process.env.XDG_RUNTIME_DIR ?? `/tmp/bitfrost-${process.getuid!()}`, 'bitfrost')
 export const DATA_DIR = process.env.BITFROST_DATA_DIR || (process.platform === 'darwin'
   ? path.join(HOME, 'Library', 'Application Support', 'BitFrost')
   : path.join(process.env.XDG_DATA_HOME || path.join(HOME, '.local', 'share'), 'bitfrost'))
@@ -153,12 +153,17 @@ export function providerEnv(config: Config, id: string): ProviderEnv {
 }
 
 export function pathLookup(name: string): string | null {
-  for (const dir of (process.env.PATH ?? '').split(':')) {
-    const p = path.join(dir, name)
-    try {
-      fs.accessSync(p, fs.constants.X_OK)
-      return p
-    } catch {}
+  const names = process.platform === 'win32' && !path.extname(name) ? [`${name}.exe`, name] : [name]
+  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (!dir) continue
+    for (const candidate of names) {
+      const p = path.join(dir, candidate)
+      try {
+        if (!fs.statSync(p).isFile()) continue
+        fs.accessSync(p, fs.constants.X_OK)
+        return p
+      } catch {}
+    }
   }
   return null
 }
@@ -172,12 +177,14 @@ const shellAnswer = (out: string | null | undefined) => {
 export function resolveBinary(name: string): string | null {
   const found = pathLookup(name)
   if (found) return found
+  if (process.platform === 'win32') return null
   const r = spawnSync(process.env.SHELL ?? '/bin/sh', ['-lic', `command -v ${name}`], { encoding: 'utf8', timeout: 5000 })
   return shellAnswer(r.stdout)
 }
 
 // The same login shell lookup, without blocking the helper.
 export function loginShellLookup(name: string): Promise<string | null> {
+  if (process.platform === 'win32') return Promise.resolve(pathLookup(name))
   return new Promise((resolve) => {
     execFile(process.env.SHELL ?? '/bin/sh', ['-lic', `command -v ${name}`], { encoding: 'utf8', timeout: 5000 }, (_e, stdout) => resolve(shellAnswer(stdout)))
   })

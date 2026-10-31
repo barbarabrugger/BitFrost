@@ -1,0 +1,5 @@
+{
+  "name": "bitfrost-poc-probe",
+  "version": "0.1.0",
+  "description": "Explicit user command to probe a native BitFrost subagent without a lead-model request."
+}

@@ -2,6 +2,10 @@
 
 <h4 align="center">A bridge between agents</h4>
 
+> **Experimental Windows branch:** see [WINDOWS-POC.md](WINDOWS-POC.md) for scope,
+> setup, verified results and known limits. The upstream documentation below
+> still describes the supported Linux/macOS release.
+
 <p align="center">
   <a href="https://x.com/SavaSoftworks"><img src="https://img.shields.io/badge/@SavaSoftworks-000000?style=for-the-badge&amp;logo=x&amp;logoColor=white" alt="Follow @SavaSoftworks on X"></a>
 </p>

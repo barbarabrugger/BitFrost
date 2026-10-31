@@ -56,6 +56,7 @@ import { selftest, selftestAll } from './selftest.ts'
 import { update } from './update.ts'
 import { uninstall } from './uninstall.ts'
 import { migrateDatabase } from './migrate.ts'
+import { serverTransport, HTTP_POC, ENDPOINT } from './poc-transport.ts'
 import { FEATURES, findFeature } from './features.ts'
 import { setupFeatures } from './settings.ts'
 
@@ -454,7 +455,9 @@ function serve() {
     }
   }
 
+  const transport = serverTransport()
   const server = http.createServer(async (req, res) => {
+    if (!transport.accepts(req)) { req.resume(); return json(res, 403, { error: 'local authentication required' }) }
     const url = new URL(req.url ?? '/', 'http://bitfrost')
     const parts = url.pathname.split('/').filter(Boolean)
     const waitMs = Math.min(Number(url.searchParams.get('waitMs') ?? 0) || 0, MAX_WAIT_MS)
@@ -712,13 +715,9 @@ function serve() {
     }
   })
 
-  try {
-    fs.unlinkSync(SOCKET)
-  } catch {}
-  server.listen(SOCKET, () => {
-    fs.chmodSync(SOCKET, 0o600)
+  transport.listen(server, () => {
     const found = [...providers.values()].map((p) => `${p.id}=${p.location}`).join(', ') || 'no providers found'
-    log(`bitfrostd ${VERSION} listening on ${SOCKET} (pid ${process.pid}, ${found})`)
+    log(`bitfrostd ${VERSION} listening on ${HTTP_POC ? 'authenticated loopback HTTP (endpoint.json)' : SOCKET} (pid ${process.pid}, ${found})`)
   })
 
   setInterval(() => {
@@ -742,6 +741,7 @@ function serve() {
     shuttingDown = true
     try {
       server.close()
+      transport.cleanup()
       log('shutdown: stopping agents')
       await Promise.all(table.running().map((s) => s.stop(providerFor(s), 'shutdown')))
       for (const provider of providers.values()) provider.dispose?.()
@@ -860,7 +860,7 @@ else if (mode === 'setup') await setup(process.argv[3])
 else if (mode === 'zcode-setup') await setup('zcode')
 else if (mode === 'ensure') await ensure()
 else if (mode === 'serve') serve()
-else if (mode === 'socket') console.log(SOCKET)
+else if (mode === 'socket') console.log(HTTP_POC ? ENDPOINT : SOCKET)
 else if (mode === 'status') await printStatus()
 else if (mode === 'restart') await restart()
 else if (mode === 'migrate') {

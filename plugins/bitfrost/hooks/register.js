@@ -6,8 +6,16 @@
 
 // Shows other apps' models as Claude Code subagents. A subagent never calls Anthropic:
 // it replays the other app's work as tool calls, which Claude Code draws like its own.
-const PLUGIN_ROOT = new URL('..', import.meta.url).pathname
+const ROOT_PATH = new URL('..', import.meta.url).pathname
+const WINDOWS_POC = /^\/[A-Za-z]:\//.test(ROOT_PATH)
+const PLUGIN_ROOT = decodeURIComponent(WINDOWS_POC ? ROOT_PATH.slice(1) : ROOT_PATH)
 const BITFROSTD = `${PLUGIN_ROOT}bin/bitfrostd`
+let launcher = null
+async function helper($, mode, timeoutMs) {
+  if (!WINDOWS_POC) return $.process.run([BITFROSTD, mode], { timeoutMs })
+  launcher ??= JSON.parse(await $.fs.read(`${PLUGIN_ROOT}windows/launch.json`))
+  return $.process.run([launcher.node, `${PLUGIN_ROOT}windows/launch.mjs`, mode], { timeoutMs })
+}
 const POLL_MS = 4000 // also how fast a cancel is noticed
 const RENEW_MS = 10_000 // the helper drops a lease after 30 s without a check-in
 // Claude Code stops a subagent that streams nothing for 10 minutes, so quiet ones send an empty chunk this often.
@@ -85,10 +93,12 @@ const stepResult = (e, answer, toolUses, stopReason, usage = null) =>
 const newToolId = () => 'toolu_bf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 
 async function daemon($, method, path, body) {
-  const r = await $.http.fetch(`http://bitfrost${path}`, {
+  const endpoint = WINDOWS_POC ? JSON.parse(await $.fs.read(socketPath)) : null
+  if (endpoint && (endpoint.hostname !== '127.0.0.1' || !Number.isInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65535 || !/^[a-f0-9]{64}$/.test(endpoint.token))) throw new Error('Invalid local POC endpoint')
+  const r = await $.http.fetch(endpoint ? `http://127.0.0.1:${endpoint.port}${path}` : `http://bitfrost${path}`, {
     method,
-    socketPath,
-    headers: body ? { 'content-type': 'application/json' } : {},
+    ...(endpoint ? {} : { socketPath }),
+    headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(endpoint ? { 'x-bitfrost-poc-token': endpoint.token } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   })
   let data = null
@@ -108,7 +118,7 @@ async function daemon($, method, path, body) {
 async function ensureDaemon($) {
   if (!socketPath) {
     // Ask the helper for its socket path instead of guessing it.
-    const r = await $.process.run([BITFROSTD, 'socket'], { timeoutMs: 10000 })
+    const r = await helper($, 'socket', 10000)
     if (r.exitCode !== 0) throw new Error(`bitfrostd socket failed: ${r.stderr || r.stdout}`)
     const printed = r.stdout.trim()
     if (!printed) throw new Error('bitfrostd socket printed no path')
@@ -136,7 +146,7 @@ async function ensureDaemon($) {
     health = null
   }
   if (!health) {
-    const r = await $.process.run([BITFROSTD, 'ensure'], { timeoutMs: 20000 })
+    const r = await helper($, 'ensure', 20000)
     if (r.exitCode !== 0) throw new Error(`bitfrostd ensure failed: ${r.stderr || r.stdout}`)
   }
 }
@@ -1298,7 +1308,7 @@ export const register = (on) => {
     // Stay out of Claude Code sessions that BitFrost itself started.
     if (await $.env.get('BITFROST_INSIDE')) return next(e)
     sessionCwd = e.cwd ?? sessionCwd
-    const home = (await $.env.get('HOME')) ?? ''
+    const home = (await $.env.get('HOME')) ?? (await $.env.get('USERPROFILE')) ?? ''
     const profile = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? `${home}/.claude`
     toldConfigError = false
     toldNewSettings = false

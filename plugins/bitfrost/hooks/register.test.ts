@@ -58,7 +58,7 @@ const world = (on: any, opts: { store?: Record<string, unknown> } = {}) => {
   const w = {
     fake,
     runs: [] as string[][],
-    calls: [] as { method: string; path: string; body?: any; socketPath?: string }[],
+    calls: [] as { method: string; path: string; body?: any; socketPath?: string; localAuthenticated?: boolean }[],
     posts: {} as Record<string, any[]>, // daemon POSTs by path, bodies only
     uiLogs: [] as { text: string; to: string }[],
     asks: [] as any[], // questions that reached the ask dialog
@@ -105,18 +105,18 @@ const world = (on: any, opts: { store?: Record<string, unknown> } = {}) => {
   })
   on('store.keys', () => ({ value: Object.keys(w.stored) }))
 
-  on('fs.read', ($: any, e: any) => ({ value: JSON.stringify({ version: '0.7.1' }) }))
+  on('fs.read', ($: any, e: any) => ({ value: JSON.stringify({ version: '0.7.1', node: 'mock-node.exe', hostname: '127.0.0.1', port: 49152, token: 'a'.repeat(64) }) }))
   on('process.run', ($: any, e: any) => {
     w.runs.push(e.argv)
-    const stdout = e.argv[1] === 'socket' ? `${SOCK}\n` : ''
+    const stdout = e.argv.at(-1) === 'socket' ? `${SOCK}\n` : ''
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
 
   on('http.fetch', async ($: any, e: any) => {
     const method = e.init?.method ?? 'GET'
-    const path = e.url.slice('http://bitfrost'.length).split('?')[0]
+    const path = new URL(e.url).pathname
     const body = e.init?.body ? JSON.parse(e.init.body) : undefined
-    w.calls.push({ method, path, body, socketPath: e.init?.socketPath })
+    w.calls.push({ method, path, body, socketPath: e.init?.socketPath, localAuthenticated: e.url.startsWith('http://127.0.0.1:49152/') && e.init?.headers?.['x-bitfrost-poc-token'] === 'a'.repeat(64) })
     if (method === 'POST') (w.posts[path] ??= []).push(body)
     let status = 200
     let reply: any = {}
@@ -303,10 +303,17 @@ test('session.start asks bitfrostd for its socket, then health, lease and agents
   const w = world(on)
   await start($)
 
-  const socketRuns = w.runs.filter((a) => a[1] === 'socket')
+  expect(w.uiLogs.filter((l) => l.text.includes('no foreign agents'))).toEqual([])
+
+  const socketRuns = w.runs.filter((a) => a.at(-1) === 'socket')
   expect(socketRuns).toHaveLength(1)
-  expect(socketRuns[0][0]).toEndWith('/bin/bitfrostd')
-  expect(w.calls.every((c) => c.socketPath === SOCK)).toBe(true)
+  if (socketRuns[0][0] === 'mock-node.exe') {
+    expect(socketRuns[0][1]).toEndWith('/windows/launch.mjs')
+    expect(w.calls.every((c) => c.socketPath === undefined && c.localAuthenticated)).toBe(true)
+  } else {
+    expect(socketRuns[0][0]).toEndWith('/bin/bitfrostd')
+    expect(w.calls.every((c) => c.socketPath === SOCK)).toBe(true)
+  }
   expect(w.calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /health', 'POST /leases', 'GET /agents'])
 
   expect(w.posts['/leases']).toEqual([{ host: 'claude-code', profile: '/home/user/.claude', hostSessionId: 'main-1' }])

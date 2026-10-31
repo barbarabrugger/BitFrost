@@ -1,0 +1,24 @@
+name: Windows POC (Codex only)
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [windows-poc]
+permissions:
+  contents: read
+jobs:
+  codex-and-transport:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test Codex adapter and local transport without credentials or model calls
+        run: node --test --disable-warning=ExperimentalWarning plugins/bitfrost/daemon/test/codex.spec.ts windows/platform.test.mjs windows/poc-transport.test.mjs
+      - name: Verify standalone Desktop packaging can read its schema version
+        shell: pwsh
+        run: |
+          node windows/prepare-desktop.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --input-type=module -e "import('./.poc/desktop/.claude/skills/bitfrost/daemon/db-version.ts').then(m => { if (!Number.isInteger(m.DB_VERSION)) throw new Error('Missing packaged schema version') })"

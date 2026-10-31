@@ -13,3 +13,8 @@ dist/
 
 # ZCode writes its own ignore file into the folders it opens.
 .zcodeignore
+
+# Windows POC: generated machine paths, local state, transcripts and credentials.
+.poc/
+plugins/bitfrost/windows/launch.json
+*.local.json

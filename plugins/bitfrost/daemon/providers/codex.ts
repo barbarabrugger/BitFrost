@@ -115,8 +115,10 @@ export class CodexAdapter implements Provider {
     if (this.ready) return this.ready
     this.ready = (async () => {
       // Put the launcher's own Node first on PATH.
-      const env = { ...process.env, PATH: `${dirname(this.bin)}:${process.env.PATH ?? ''}` }
-      const proc = spawn(this.bin, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'], env })
+      const env = { ...process.env, PATH: `${dirname(this.bin)}${path.delimiter}${process.env.PATH ?? ''}` }
+      // Node test adapters have a shebang, which Windows cannot execute directly.
+      const script = /\.[cm]?js$/i.test(this.bin)
+      const proc = spawn(script ? process.execPath : this.bin, [...(script ? [this.bin] : []), 'app-server'], { stdio: ['pipe', 'pipe', 'pipe'], env, windowsHide: true })
       this.proc = proc
       proc.stderr!.on('data', (d) => this.log(`codex stderr: ${String(d).trimEnd()}`))
       // Catch writes to an exited app-server so they cannot crash the helper.
